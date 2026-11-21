@@ -26,13 +26,6 @@ enum Custom {
                 .foregroundStyle(.white)
                 .padding(.bottom, variant == .cutout ? 65 : 55)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-//                .background {
-//                    backgroundShape
-//                        .fill(
-//                            buttonRed,
-//                            style: FillStyle(eoFill: variant == .cutout)
-//                        )
-//                }
                 .background {
                     backgroundShape.fill(buttonRed)
                 }
@@ -64,9 +57,9 @@ struct CutoutButtonShape: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
 
-        let cornerRadius: CGFloat = 20
-        let notchRadius = rect.width * 0.15
-        let notchCenterY = rect.height * 0.72
+        let cornerRadius: CGFloat = 10 // when this is removed the problem goes away, however we need a corner radius for the top left and top right
+        let notchRadius = rect.width * 0.18
+        let notchCenterY = rect.height * 0.81
 
         let leftNotchTop = notchCenterY - notchRadius
         let leftNotchBottom = notchCenterY + notchRadius
@@ -101,32 +94,12 @@ struct CutoutButtonShape: Shape {
             endAngle: .degrees(90),
             clockwise: true
         )
+        
+        // Continue down the right edge to the bottom.
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
 
-        // Continue down the right edge.
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - cornerRadius))
-
-        // Bottom-right corner.
-        path.addArc(
-            center: CGPoint(x: rect.maxX - cornerRadius,
-                           y: rect.maxY - cornerRadius),
-            radius: cornerRadius,
-            startAngle: .degrees(0),
-            endAngle: .degrees(90),
-            clockwise: false
-        )
-
-        // Bottom edge.
-        path.addLine(to: CGPoint(x: rect.minX + cornerRadius, y: rect.maxY))
-
-        // Bottom-left corner.
-        path.addArc(
-            center: CGPoint(x: rect.minX + cornerRadius,
-                           y: rect.maxY - cornerRadius),
-            radius: cornerRadius,
-            startAngle: .degrees(90),
-            endAngle: .degrees(180),
-            clockwise: false
-        )
+        // Straight bottom edge (no rounded bottom corners).
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
 
         // Left edge, up to the notch.
         path.addLine(to: CGPoint(x: rect.minX, y: leftNotchBottom))
