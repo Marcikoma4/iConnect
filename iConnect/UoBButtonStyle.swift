@@ -44,7 +44,7 @@ enum Custom {
             case .cutout:
                 AnyShape(CutoutButtonShape())
             case .regular:
-                AnyShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                AnyShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
         }
     }
