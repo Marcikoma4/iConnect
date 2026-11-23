@@ -8,11 +8,18 @@
 import SwiftUI
 
 struct Profile: View {
+    
+    @Environment(AppData.self) private var appData
+    @Binding var progress: AppData.Progress?
+    
     var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+        VStack {
+            
+        }
     }
 }
 
 #Preview {
-    Profile()
+    Profile(progress: .constant(.profile))
+        .environment(AppData())
 }

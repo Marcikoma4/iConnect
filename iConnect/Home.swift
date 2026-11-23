@@ -3,6 +3,8 @@ import SwiftUI
 struct Home: View {
 
     @State private var tapped = false
+    @Environment(AppData.self) private var appData
+    @Binding var progress: AppData.Progress?
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -65,6 +67,7 @@ struct Home: View {
                     Button {
                         tapped.toggle()
                         print("iConnect tapped")
+                        progress = .home
                     } label: {
                         Text("iConnect")
                             .rockwellFont(22)
@@ -153,7 +156,8 @@ struct Home: View {
 }
 
 #Preview {
-    Home()
+    Home(progress: .constant(nil))
+        .environment(AppData())
 }
 
 

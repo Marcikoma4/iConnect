@@ -8,11 +8,16 @@
 import SwiftUI
 
 struct FamilyMatchScreen: View {
+    
+    @Environment(AppData.self) private var appData
+    @Binding var connectionType: AppData.ConnectionType
+    
     var body: some View {
         Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
     }
 }
 
 #Preview {
-    FamilyMatchScreen()
+    FamilyMatchScreen(connectionType: .constant(.homeLink))
+        .environment(AppData())
 }
