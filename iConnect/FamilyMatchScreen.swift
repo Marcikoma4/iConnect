@@ -11,6 +11,7 @@ struct FamilyMatchScreen: View {
     
     @Environment(AppData.self) private var appData
     @Binding var connectionType: AppData.ConnectionType
+    @Binding var progress: AppData.Progress?
     
     var body: some View {
         Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
@@ -18,6 +19,6 @@ struct FamilyMatchScreen: View {
 }
 
 #Preview {
-    FamilyMatchScreen(connectionType: .constant(.homeLink))
+    FamilyMatchScreen(connectionType: .constant(.homeLink), progress: .constant(.matchScreen))
         .environment(AppData())
 }

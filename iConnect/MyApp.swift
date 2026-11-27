@@ -4,7 +4,7 @@ import SwiftUI
     
     @State private var progress: AppData.Progress?
     @State private var connectionType: AppData.ConnectionType = .studentConnect
-    @Environment(AppData.self) private var appData
+    @State private var appData = AppData()
     
     var body: some Scene {
         WindowGroup {
@@ -16,22 +16,22 @@ import SwiftUI
             case .profile:
                 Profile(progress: $progress)
             case .connectionSelector:
-                ConnectionSelector(progress: $progress)
+                ConnectionSelector(progress: $progress, connectionType: $connectionType)
             case .searchScreen:
-                SearchScreen(progress: $progress)
+                SearchScreen(progress: $progress, connectionType: $connectionType)
             case .matchScreen:
                 switch connectionType {
                 case .studentConnect:
-                    StudentMatchScreen(connectionType: $connectionType)
+                    StudentMatchScreen(connectionType: $connectionType, progress: $progress)
                 case .homeLink:
-                    FamilyMatchScreen(connectionType: $connectionType)
+                    FamilyMatchScreen(connectionType: $connectionType, progress: $progress)
                 case .penPal:
-                    PenPalMatchScreen(connectionType: $connectionType)
+                    PenPalMatchScreen(connectionType: $connectionType, progress: $progress)
                 }
             case nil:
                 Home(progress: $progress)
             }
         }
-        .environment(AppData())
+        .environment(appData)
     }
 }
