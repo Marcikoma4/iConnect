@@ -100,7 +100,74 @@ class AppData {
         "Welsh"
     ]
     
-    enum ConnectionType: Hashable {
+    static let accommodationSections: [(title: String, items: [String])] = [
+        (
+            "North Village",
+            [
+                "Badock Hall",
+                "Churchill Hall",
+                "Durdham Hall",
+                "Hiatt Baker Hall",
+                "University Hall",
+                "Wills Hall"
+            ]
+        ),
+        (
+            "West Village",
+            [
+                "Clifton Hill House",
+                "Goldney Hall",
+                "Manor Hall",
+                "Queen's Road",
+                "Richmond Terrace",
+                "Winkworth House",
+                "Hillside Woodside",
+                "Northwell House",
+                "Woodland Court"
+            ]
+        ),
+        (
+            "East Village",
+            [
+                "Campus Houses",
+                "Colston Street",
+                "Culver House",
+                "New Bridewell",
+                "Orchard Heights",
+                "Redland Road",
+                "Riverside",
+                "St Michael's Hill",
+                "St Michael's Park",
+                "The Courtrooms",
+                "Woodland Road",
+                "Unite House",
+                "The Hawthorns"
+            ]
+        ),
+        (
+            "Other",
+            [
+                "Accommodation at Thirty-Three",
+                "Avon Point",
+                "Brunel House",
+                "Campbell House",
+                "Chantry Court",
+                "Marlborough House",
+                "Metal Works",
+                "Marketgate",
+                "Print Hall",
+                "The Rackhay & Favell House",
+                "Timber Yard",
+                "Tower",
+                "St Thomas Street",
+                "Langford"
+            ]
+        )
+    ]
+    
+    static let accommodations: [String] = accommodationSections.flatMap(\.items)
+    
+    enum ConnectionType: String, Hashable, Codable {
         case studentConnect, homeLink, penPal
     }
     
@@ -139,6 +206,18 @@ class AppData {
     var language: String = "English" {
         didSet { save() }
     }
+    var selectedConnectionType: ConnectionType? {
+        didSet { save() }
+    }
+    var meetupDays: [String] = [] {
+        didSet { save() }
+    }
+    var meetupTime: String? {
+        didSet { save() }
+    }
+    var meetupLocation: String? {
+        didSet { save() }
+    }
     
     var currentMonth: Int {
         Calendar.current.component(.month, from: Date())
@@ -159,6 +238,10 @@ class AppData {
         var studentStatus: StudentStatus?
         var courseYear: CourseYear?
         var language: String?
+        var selectedConnectionType: ConnectionType?
+        var meetupDays: [String]?
+        var meetupTime: String?
+        var meetupLocation: String?
     }
     
     init(defaults: UserDefaults = .standard) {
@@ -190,6 +273,10 @@ class AppData {
         } else {
             language = "English"
         }
+        selectedConnectionType = saved.selectedConnectionType
+        meetupDays = saved.meetupDays ?? []
+        meetupTime = saved.meetupTime
+        meetupLocation = saved.meetupLocation
     }
     
     private func save() {
@@ -204,7 +291,11 @@ class AppData {
             interests: interests,
             studentStatus: studentStatus,
             courseYear: courseYear,
-            language: language
+            language: language,
+            selectedConnectionType: selectedConnectionType,
+            meetupDays: meetupDays,
+            meetupTime: meetupTime,
+            meetupLocation: meetupLocation
         )
         if let data = try? JSONEncoder().encode(snapshot) {
             defaults.set(data, forKey: Self.storageKey)
@@ -223,6 +314,10 @@ class AppData {
         studentStatus = nil
         courseYear = nil
         language = "English"
+        selectedConnectionType = nil
+        meetupDays = []
+        meetupTime = nil
+        meetupLocation = nil
         isUpdating = false
         defaults.removeObject(forKey: Self.storageKey)
     }

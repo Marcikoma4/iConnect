@@ -20,26 +20,20 @@ struct Profile: View {
     @State private var course: String = ""
     @State private var selectedYear: AppData.CourseYear?
     @State private var selectedLanguage: String = "English"
-    @State private var showingLanguagePicker = false
+    @State private var activePickerSheet: PickerSheet?
     @State private var accommodation: String = ""
     @State private var interests: String = ""
     @State private var selectedStatus: AppData.StudentStatus = .international
+    
+    private enum PickerSheet: Identifiable {
+        case language, accommodation
+        var id: Self { self }
+    }
     
     private let brandRed = Color(red: 0.65, green: 0.09, blue: 0.19)
     private let borderColor = Color(white: 0.85)
     private let labelColor = Color(white: 0.28)
     private let placeholderColor = Color(white: 0.45)
-    
-    private let accommodationOptions = [
-        "North Village",
-        "East Village",
-        "West Village",
-        "Other undergraduate accomodation",
-        "Private Halls",
-        "Private Housing",
-        "Living at Home (in Bristol)",
-        "Commuting from different region",
-    ]
     
     private var isFirstnameMissing: Bool { nonEmpty(firstname) == nil }
     private var isSurnameMissing: Bool { nonEmpty(surname) == nil }
@@ -47,6 +41,7 @@ struct Profile: View {
     private var isYearMissing: Bool { selectedYear == nil }
     private var isLanguageMissing: Bool { nonEmpty(selectedLanguage) == nil }
     private var isAccommodationMissing: Bool { nonEmpty(accommodation) == nil }
+    private var isInterestsMissing: Bool { nonEmpty(interests) == nil }
     
     private var isFormValid: Bool {
         !isFirstnameMissing &&
@@ -54,7 +49,8 @@ struct Profile: View {
         !isCourseMissing &&
         !isYearMissing &&
         !isLanguageMissing &&
-        !isAccommodationMissing
+        !isAccommodationMissing &&
+        !isInterestsMissing
     }
     
     var body: some View {
@@ -146,7 +142,7 @@ struct Profile: View {
                     HStack(spacing: 12) {
                         fieldContainer(title: "Language", isRequired: true) {
                             Button {
-                                showingLanguagePicker = true
+                                activePickerSheet = .language
                             } label: {
                                 dropdownLabel(
                                     text: selectedLanguage,
@@ -158,15 +154,8 @@ struct Profile: View {
                         }
                         
                         fieldContainer(title: "Accommodation", isRequired: true) {
-                            Menu {
-                                ForEach(accommodationOptions, id: \.self) { option in
-                                    Button {
-                                        accommodation = option
-                                    } label: {
-                                        Text(option)
-                                            .rockwellFont(14)
-                                    }
-                                }
+                            Button {
+                                activePickerSheet = .accommodation
                             } label: {
                                 dropdownLabel(
                                     text: accommodation.isEmpty ? "Select" : accommodation,
@@ -174,11 +163,12 @@ struct Profile: View {
                                     isInvalid: showValidationErrors && isAccommodationMissing
                                 )
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                     
                     // Interests (optional)
-                    fieldContainer(title: "Interests", isRequired: false) {
+                    fieldContainer(title: "Interests", isRequired: true) {
                         TextField("Add your interests", text: $interests)
                             .rockwellFont(14)
                             .modifier(InputFieldModifier(borderColor: borderColor, lineWidth: 1))
@@ -274,13 +264,25 @@ struct Profile: View {
         .onAppear {
             loadExistingProfile()
         }
-        .sheet(isPresented: $showingLanguagePicker) {
-            LanguagePickerSheet(
-                selectedLanguage: $selectedLanguage,
-                languages: AppData.majorLanguages,
-                brandRed: brandRed,
-                borderColor: borderColor
-            )
+        .sheet(item: $activePickerSheet) { sheet in
+            Group {
+                switch sheet {
+                case .language:
+                    LanguagePickerSheet(
+                        selectedLanguage: $selectedLanguage,
+                        languages: AppData.majorLanguages,
+                        brandRed: brandRed,
+                        borderColor: borderColor
+                    )
+                case .accommodation:
+                    AccommodationPickerSheet(
+                        selectedAccommodation: $accommodation,
+                        sections: AppData.accommodationSections,
+                        brandRed: brandRed,
+                        borderColor: borderColor
+                    )
+                }
+            }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
@@ -488,6 +490,134 @@ private struct LanguagePickerSheet: View {
                             
                             Divider()
                                 .padding(.leading, 20)
+                        }
+                    }
+                }
+                .scrollDismissesKeyboard(.interactively)
+            }
+        }
+    }
+}
+
+private struct AccommodationPickerSheet: View {
+    @Binding var selectedAccommodation: String
+    let sections: [(title: String, items: [String])]
+    let brandRed: Color
+    let borderColor: Color
+    
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText: String = ""
+    
+    private var filteredSections: [(title: String, items: [String])] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return sections }
+        return sections.compactMap { section in
+            if section.title.localizedCaseInsensitiveContains(query) {
+                return section
+            }
+            let matchingItems = section.items.filter { $0.localizedCaseInsensitiveContains(query) }
+            return matchingItems.isEmpty ? nil : (section.title, matchingItems)
+        }
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Select accommodation")
+                    .rockwellFont(20).bold()
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Text("Done")
+                        .rockwellFont(15).bold()
+                        .foregroundStyle(brandRed)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 12)
+            
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Color(white: 0.45))
+                TextField("Search accommodation", text: $searchText)
+                    .rockwellFont(14)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 15))
+                            .foregroundStyle(Color(white: 0.55))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color(.systemBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(borderColor, lineWidth: 1)
+            )
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
+            
+            Divider()
+            
+            if filteredSections.isEmpty {
+                Text("No accommodation found")
+                    .rockwellFont(14)
+                    .foregroundStyle(Color(white: 0.45))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(filteredSections, id: \.title) { section in
+                            Text(section.title.uppercased())
+                                .rockwellFont(11).bold()
+                                .tracking(0.8)
+                                .foregroundStyle(brandRed)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 20)
+                                .padding(.top, 16)
+                                .padding(.bottom, 6)
+                                .background(brandRed.opacity(0.04))
+                            
+                            ForEach(section.items, id: \.self) { place in
+                                let isSelected = place == selectedAccommodation
+                                Button {
+                                    selectedAccommodation = place
+                                    dismiss()
+                                } label: {
+                                    HStack {
+                                        Text(place)
+                                            .rockwellFont(15)
+                                            .fontWeight(isSelected ? .bold : .regular)
+                                            .foregroundStyle(isSelected ? brandRed : .primary)
+                                        Spacer()
+                                        if isSelected {
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 14, weight: .bold))
+                                                .foregroundStyle(brandRed)
+                                        }
+                                    }
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 14)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                
+                                Divider()
+                                    .padding(.leading, 20)
+                            }
                         }
                     }
                 }

@@ -77,14 +77,17 @@ struct ConnectionSelector: View {
             CustomTabBar()
         }
         .sheet(item: $activeInfo) { sheet in
-            switch sheet {
-            case .studentConnect:
-                StudentConnectInfo()
-            case .homeLink:
-                HomeLinkInfo()
-            case .penPal:
-                PenPalInfo()
+            Group {
+                switch sheet {
+                case .studentConnect:
+                    StudentConnectInfo()
+                case .homeLink:
+                    HomeLinkInfo()
+                case .penPal:
+                    PenPalInfo()
+                }
             }
+            .presentationDragIndicator(.visible)
         }
     }
     
@@ -158,6 +161,7 @@ struct ConnectionSelector: View {
     
     private func selectConnection(_ type: AppData.ConnectionType) {
         connectionType = type
+        appData.selectedConnectionType = type
         tapped.toggle()
         progress = .searchScreen
     }

@@ -67,7 +67,13 @@ struct Home: View {
                     Button {
                         tapped.toggle()
                         print("iConnect tapped")
-                        progress = .home
+                        if appData.hasConnected {
+                            progress = .overview
+                        } else if appData.hasCreatedProfile {
+                            progress = .connectionSelector
+                        } else {
+                            progress = .home
+                        }
                     } label: {
                         Text("iConnect")
                             .rockwellFont(22)

@@ -1,0 +1,2316 @@
+diff --git a/iConnect.xcodeproj/project.xcproj b/iConnect.xcodeproj/project.xcproj
+index 745e2ee..7d29805 100644
+--- a/iConnect.xcodeproj/project.xcproj
++++ b/iConnect.xcodeproj/project.xcproj
+@@ -49,6 +49,7 @@
+         "INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]": "UIStatusBarStyleDefault",
+         "INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad": "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight",
+         "INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone": "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight",
++        "INFOPLIST_KEY_UIUserInterfaceStyle": "Light",
+         "LD_RUNPATH_SEARCH_PATHS": "@executable_path/Frameworks",
+         "LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]": "@executable_path/../Frameworks",
+         "MARKETING_VERSION": "1.0",
+diff --git a/iConnect/AppData.swift b/iConnect/AppData.swift
+index db0b590..b5140f0 100644
+--- a/iConnect/AppData.swift
++++ b/iConnect/AppData.swift
+@@ -100,7 +100,74 @@ class AppData {
+         "Welsh"
+     ]
+     
+-    enum ConnectionType: Hashable {
++    static let accommodationSections: [(title: String, items: [String])] = [
++        (
++            "North Village",
++            [
++                "Badock Hall",
++                "Churchill Hall",
++                "Durdham Hall",
++                "Hiatt Baker Hall",
++                "University Hall",
++                "Wills Hall"
++            ]
++        ),
++        (
++            "West Village",
++            [
++                "Clifton Hill House",
++                "Goldney Hall",
++                "Manor Hall",
++                "Queen's Road",
++                "Richmond Terrace",
++                "Winkworth House",
++                "Hillside Woodside",
++                "Northwell House",
++                "Woodland Court"
++            ]
++        ),
++        (
++            "East Village",
++            [
++                "Campus Houses",
++                "Colston Street",
++                "Culver House",
++                "New Bridewell",
++                "Orchard Heights",
++                "Redland Road",
++                "Riverside",
++                "St Michael's Hill",
++                "St Michael's Park",
++                "The Courtrooms",
++                "Woodland Road",
++                "Unite House",
++                "The Hawthorns"
++            ]
++        ),
++        (
++            "Other",
++            [
++                "Accommodation at Thirty-Three",
++                "Avon Point",
++                "Brunel House",
++                "Campbell House",
++                "Chantry Court",
++                "Marlborough House",
++                "Metal Works",
++                "Marketgate",
++                "Print Hall",
++                "The Rackhay & Favell House",
++                "Timber Yard",
++                "Tower",
++                "St Thomas Street",
++                "Langford"
++            ]
++        )
++    ]
++    
++    static let accommodations: [String] = accommodationSections.flatMap(\.items)
++    
++    enum ConnectionType: String, Hashable, Codable {
+         case studentConnect, homeLink, penPal
+     }
+     
+@@ -139,6 +206,18 @@ class AppData {
+     var language: String = "English" {
+         didSet { save() }
+     }
++    var selectedConnectionType: ConnectionType? {
++        didSet { save() }
++    }
++    var meetupDays: [String] = [] {
++        didSet { save() }
++    }
++    var meetupTime: String? {
++        didSet { save() }
++    }
++    var meetupLocation: String? {
++        didSet { save() }
++    }
+     
+     var currentMonth: Int {
+         Calendar.current.component(.month, from: Date())
+@@ -159,6 +238,10 @@ class AppData {
+         var studentStatus: StudentStatus?
+         var courseYear: CourseYear?
+         var language: String?
++        var selectedConnectionType: ConnectionType?
++        var meetupDays: [String]?
++        var meetupTime: String?
++        var meetupLocation: String?
+     }
+     
+     init(defaults: UserDefaults = .standard) {
+@@ -190,6 +273,10 @@ class AppData {
+         } else {
+             language = "English"
+         }
++        selectedConnectionType = saved.selectedConnectionType
++        meetupDays = saved.meetupDays ?? []
++        meetupTime = saved.meetupTime
++        meetupLocation = saved.meetupLocation
+     }
+     
+     private func save() {
+@@ -204,7 +291,11 @@ class AppData {
+             interests: interests,
+             studentStatus: studentStatus,
+             courseYear: courseYear,
+-            language: language
++            language: language,
++            selectedConnectionType: selectedConnectionType,
++            meetupDays: meetupDays,
++            meetupTime: meetupTime,
++            meetupLocation: meetupLocation
+         )
+         if let data = try? JSONEncoder().encode(snapshot) {
+             defaults.set(data, forKey: Self.storageKey)
+@@ -223,6 +314,10 @@ class AppData {
+         studentStatus = nil
+         courseYear = nil
+         language = "English"
++        selectedConnectionType = nil
++        meetupDays = []
++        meetupTime = nil
++        meetupLocation = nil
+         isUpdating = false
+         defaults.removeObject(forKey: Self.storageKey)
+     }
+diff --git a/iConnect/ConnectionSelector.swift b/iConnect/ConnectionSelector.swift
+index 64c00ef..6a52de3 100644
+--- a/iConnect/ConnectionSelector.swift
++++ b/iConnect/ConnectionSelector.swift
+@@ -77,14 +77,17 @@ struct ConnectionSelector: View {
+             CustomTabBar()
+         }
+         .sheet(item: $activeInfo) { sheet in
+-            switch sheet {
+-            case .studentConnect:
+-                StudentConnectInfo()
+-            case .homeLink:
+-                HomeLinkInfo()
+-            case .penPal:
+-                PenPalInfo()
++            Group {
++                switch sheet {
++                case .studentConnect:
++                    StudentConnectInfo()
++                case .homeLink:
++                    HomeLinkInfo()
++                case .penPal:
++                    PenPalInfo()
++                }
+             }
++            .presentationDragIndicator(.visible)
+         }
+     }
+     
+@@ -158,6 +161,7 @@ struct ConnectionSelector: View {
+     
+     private func selectConnection(_ type: AppData.ConnectionType) {
+         connectionType = type
++        appData.selectedConnectionType = type
+         tapped.toggle()
+         progress = .searchScreen
+     }
+diff --git a/iConnect/FamilyMatchScreen.swift b/iConnect/FamilyMatchScreen.swift
+index 8717310..20f8276 100644
+--- a/iConnect/FamilyMatchScreen.swift
++++ b/iConnect/FamilyMatchScreen.swift
+@@ -6,6 +6,7 @@
+ //
+ 
+ import SwiftUI
++import MessageUI
+ 
+ struct FamilyMatchScreen: View {
+     
+@@ -13,8 +14,224 @@ struct FamilyMatchScreen: View {
+     @Binding var connectionType: AppData.ConnectionType
+     @Binding var progress: AppData.Progress?
+     
++    @State private var tapped = false
++    @State private var showingEmailSheet = false
++    @State private var showingMailUnavailableAlert = false
++    
++    private let brandRed = Color(red: 0.65, green: 0.09, blue: 0.19)
++    private let labelColor = Color(white: 0.42)
++    
++    private let hostName = "Dr Jane Doe"
++    private let hostEmail = "janedoe@bristol.ac.uk"
++    
++    private var matchNationality: String {
++        appData.language
++    }
++    
++    private var familyStudents: [(name: String, course: String, year: String)] {
++        [
++            ("John Doe", "Physics", "Year 1"),
++            ("Jane Doe", "Finance", "Year 2")
++        ]
++    }
++    
+     var body: some View {
+-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
++        VStack(spacing: 0) {
++            HStack {
++                MonthHeader()
++                Button {
++                    tapped.toggle()
++                    progress = .overview
++                } label: {
++                    Text("Back")
++                }
++                .padding(.trailing, 25)
++                .buttonStyle(.glass)
++                .controlSize(.large)
++                .sensoryFeedback(.success, trigger: tapped)
++            }
++            
++            ScrollView {
++                VStack(alignment: .leading, spacing: 20) {
++                    Text("It’s a match!")
++                        .rockwellFont(26).bold()
++                        .padding(.top, 16)
++                    
++                    // Hero HomeLink banner
++                    ZStack {
++                        VStack(alignment: .leading) {
++                            Text("Your HomeLink family")
++                                .rockwellFont(21).bold()
++                                .foregroundStyle(.white)
++                            Spacer()
++                        }
++                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
++                        .padding(.top, 20)
++                        .padding(.leading, 18)
++                        .padding(.trailing, 110)
++                        
++                        VStack {
++                            Spacer()
++                            HStack {
++                                Spacer()
++                                Circle()
++                                    .fill(.white)
++                                    .frame(width: 82, height: 82)
++                                    .overlay {
++                                        Image(systemName: "person.2")
++                                            .font(.system(size: 30, weight: .regular))
++                                            .foregroundStyle(brandRed)
++                                            .offset(y: -2)
++                                    }
++                                    .overlay(alignment: .bottomTrailing) {
++                                        Circle()
++                                            .fill(brandRed)
++                                            .frame(width: 26, height: 26)
++                                            .overlay {
++                                                Image(systemName: "checkmark")
++                                                    .font(.system(size: 12, weight: .bold))
++                                                    .foregroundStyle(.white)
++                                            }
++                                            .offset(x: 4, y: -8)
++                                    }
++                                    .offset(y: 12)
++                                    .padding(.trailing, 16)
++                            }
++                        }
++                    }
++                    .frame(height: 118)
++                    .frame(maxWidth: .infinity)
++                    .background(
++                        RoundedRectangle(cornerRadius: 12, style: .continuous)
++                            .fill(brandRed)
++                    )
++                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
++                    
++                    Text("Meet your staff host")
++                        .rockwellFont(22).bold()
++                        .padding(.top, 4)
++                    
++                    // Staff host card
++                    VStack(alignment: .leading, spacing: 18) {
++                        detailField(label: "STAFF MEMBER") {
++                            Text(hostName)
++                                .rockwellFont(20).bold()
++                                .foregroundStyle(.primary)
++                        }
++                        
++                        detailField(label: "NATIONALITY") {
++                            Text(matchNationality)
++                                .rockwellFont(16)
++                                .foregroundStyle(.primary)
++                        }
++                        
++                        detailField(label: "EMAIL") {
++                            Button {
++                                openEmailComposer()
++                            } label: {
++                                Text(hostEmail)
++                                    .rockwellFont(15)
++                                    .foregroundStyle(brandRed)
++                            }
++                            .buttonStyle(.plain)
++                        }
++                    }
++                    .frame(maxWidth: .infinity, alignment: .leading)
++                    .padding(20)
++                    .background(
++                        RoundedRectangle(cornerRadius: 14, style: .continuous)
++                            .fill(brandRed.opacity(0.05))
++                    )
++                    
++                    Text("Other students in your family")
++                        .rockwellFont(19).bold()
++                        .padding(.top, 4)
++                    
++                    // Other students card
++                    VStack(alignment: .leading, spacing: 0) {
++                        ForEach(Array(familyStudents.enumerated()), id: \.offset) { index, student in
++                            VStack(alignment: .leading, spacing: 4) {
++                                Text(student.name)
++                                    .rockwellFont(16).bold()
++                                    .foregroundStyle(.primary)
++                                
++                                Text("\(matchNationality) · \(student.course) · \(student.year)")
++                                    .rockwellFont(13)
++                                    .foregroundStyle(labelColor)
++                            }
++                            .frame(maxWidth: .infinity, alignment: .leading)
++                            .padding(.vertical, 12)
++                            
++                            if index < familyStudents.count - 1 {
++                                Divider()
++                            }
++                        }
++                    }
++                    .padding(.horizontal, 20)
++                    .padding(.vertical, 6)
++                    .background(
++                        RoundedRectangle(cornerRadius: 14, style: .continuous)
++                            .fill(brandRed.opacity(0.05))
++                    )
++                }
++                .padding(.horizontal, 20)
++                .padding(.bottom, 12)
++            }
++            
++            Button {
++                tapped.toggle()
++                openEmailComposer()
++            } label: {
++                HStack {
++                    Text("Email your staff host")
++                        .rockwellFont(22)
++                    Spacer()
++                    Image(systemName: "arrow.right")
++                        .font(.system(size: 20, weight: .semibold))
++                }
++                .frame(maxWidth: .infinity, maxHeight: .infinity)
++                .padding(.horizontal, 20)
++            }
++            .buttonStyle(.custom(variant: .regular))
++            .frame(height: 115)
++            .padding(.horizontal, 20)
++            .padding(.top, 8)
++            .padding(.bottom, 6)
++            .sensoryFeedback(.success, trigger: tapped)
++            
++            CustomTabBar()
++        }
++        .onAppear {
++            appData.hasConnected = true
++        }
++        .sheet(isPresented: $showingEmailSheet) {
++            SCEmailView(recipient: hostEmail, recipientFirstName: "Dr Doe", greeting: "Dear")
++        }
++        .alert("Mail Unavailable", isPresented: $showingMailUnavailableAlert) {
++            Button("OK", role: .cancel) { }
++        } message: {
++            Text("Mail is not configured on this device. You can email \(hostName) at \(hostEmail).")
++        }
++    }
++    
++    @ViewBuilder
++    private func detailField<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
++        VStack(alignment: .leading, spacing: 5) {
++            Text(label)
++                .rockwellFont(11).bold()
++                .tracking(0.8)
++                .foregroundStyle(labelColor)
++            
++            content()
++        }
++    }
++    
++    private func openEmailComposer() {
++        if MFMailComposeViewController.canSendMail() {
++            showingEmailSheet = true
++        } else {
++            showingMailUnavailableAlert = true
++        }
+     }
+ }
+ 
+diff --git a/iConnect/Home.swift b/iConnect/Home.swift
+index 0fad378..f5b8622 100644
+--- a/iConnect/Home.swift
++++ b/iConnect/Home.swift
+@@ -67,7 +67,13 @@ struct Home: View {
+                     Button {
+                         tapped.toggle()
+                         print("iConnect tapped")
+-                        progress = .home
++                        if appData.hasConnected {
++                            progress = .overview
++                        } else if appData.hasCreatedProfile {
++                            progress = .connectionSelector
++                        } else {
++                            progress = .home
++                        }
+                     } label: {
+                         Text("iConnect")
+                             .rockwellFont(22)
+diff --git a/iConnect/HomeLinkInfo.swift b/iConnect/HomeLinkInfo.swift
+index ce79ce7..e6ef5a4 100644
+--- a/iConnect/HomeLinkInfo.swift
++++ b/iConnect/HomeLinkInfo.swift
+@@ -8,8 +8,155 @@
+ import SwiftUI
+ 
+ struct HomeLinkInfo: View {
++    
++    @Environment(\.dismiss) private var dismiss
++    
++    private let brandRed = Color(red: 0.65, green: 0.09, blue: 0.19)
++    private let subtitleColor = Color(white: 0.40)
++    
+     var body: some View {
+-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
++        VStack(spacing: 0) {
++            HStack {
++                Text("About this connection")
++                    .rockwellFont(13).bold()
++                    .foregroundStyle(brandRed)
++                Spacer()
++                Button {
++                    dismiss()
++                } label: {
++                    Text("Done")
++                        .rockwellFont(15).bold()
++                        .foregroundStyle(brandRed)
++                }
++            }
++            .padding(.horizontal, 20)
++            .padding(.top, 20)
++            .padding(.bottom, 14)
++            
++            ScrollView {
++                VStack(alignment: .leading, spacing: 20) {
++                    // Hero banner
++                    ZStack {
++                        VStack(alignment: .leading, spacing: 4) {
++                            Text("CONNECTION TYPE")
++                                .rockwellFont(11).bold()
++                                .tracking(0.8)
++                                .foregroundStyle(.white.opacity(0.85))
++                            
++                            Text("Home link")
++                                .rockwellFont(24).bold()
++                                .foregroundStyle(.white)
++                            
++                            Spacer()
++                        }
++                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
++                        .padding(.top, 18)
++                        .padding(.leading, 18)
++                        .padding(.trailing, 106)
++                        
++                        VStack {
++                            Spacer()
++                            HStack {
++                                Spacer()
++                                Circle()
++                                    .fill(.white)
++                                    .frame(width: 78, height: 78)
++                                    .overlay {
++                                        Image(systemName: "house")
++                                            .font(.system(size: 28, weight: .regular))
++                                            .foregroundStyle(brandRed)
++                                            .offset(y: -3)
++                                    }
++                                    .offset(y: 14)
++                                    .padding(.trailing, 16)
++                            }
++                        }
++                    }
++                    .frame(height: 112)
++                    .frame(maxWidth: .infinity)
++                    .background(
++                        RoundedRectangle(cornerRadius: 12, style: .continuous)
++                            .fill(brandRed)
++                    )
++                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
++                    
++                    // Overview description
++                    VStack(alignment: .leading, spacing: 8) {
++                        Text("What is Home link?")
++                            .rockwellFont(18).bold()
++                            .foregroundStyle(.primary)
++                        
++                        Text("HomeLink connects you with a small ‘family’ of students who share the same or similar heritage, led and managed by a University of Bristol staff member. Your group meets together on a regular basis to help make Bristol feel more like home.")
++                            .rockwellFont(15)
++                            .foregroundStyle(subtitleColor)
++                            .lineSpacing(4)
++                    }
++                    .frame(maxWidth: .infinity, alignment: .leading)
++                    .padding(18)
++                    .background(
++                        RoundedRectangle(cornerRadius: 14, style: .continuous)
++                            .fill(brandRed.opacity(0.05))
++                    )
++                    
++                    // Key highlights
++                    VStack(alignment: .leading, spacing: 14) {
++                        Text("How it works")
++                            .rockwellFont(18).bold()
++                            .foregroundStyle(.primary)
++                        
++                        highlightRow(
++                            symbol: "person.3",
++                            title: "Staff-managed family",
++                            detail: "A member of university staff hosts and guides a small group of students with similar heritage."
++                        )
++                        
++                        highlightRow(
++                            symbol: "calendar",
++                            title: "Regular group meetups",
++                            detail: "Get together as a family on a recurring basis throughout the term."
++                        )
++                        
++                        highlightRow(
++                            symbol: "building.columns",
++                            title: "Supportive community",
++                            detail: "A welcoming space to share experiences, ask questions and build lasting friendships."
++                        )
++                    }
++                    .frame(maxWidth: .infinity, alignment: .leading)
++                    .padding(18)
++                    .background(
++                        RoundedRectangle(cornerRadius: 14, style: .continuous)
++                            .fill(brandRed.opacity(0.05))
++                    )
++                }
++                .padding(.horizontal, 20)
++                .padding(.bottom, 24)
++            }
++        }
++    }
++    
++    private func highlightRow(symbol: String, title: String, detail: String) -> some View {
++        HStack(alignment: .top, spacing: 12) {
++            Circle()
++                .fill(brandRed.opacity(0.10))
++                .frame(width: 36, height: 36)
++                .overlay {
++                    Image(systemName: symbol)
++                        .font(.system(size: 15, weight: .medium))
++                        .foregroundStyle(brandRed)
++                }
++            
++            VStack(alignment: .leading, spacing: 3) {
++                Text(title)
++                    .rockwellFont(15).bold()
++                    .foregroundStyle(.primary)
++                
++                Text(detail)
++                    .rockwellFont(13)
++                    .foregroundStyle(subtitleColor)
++                    .lineSpacing(2)
++            }
++        }
+     }
+ }
+ 
+diff --git a/iConnect/MyApp.swift b/iConnect/MyApp.swift
+index ccd9068..7ee86fb 100644
+--- a/iConnect/MyApp.swift
++++ b/iConnect/MyApp.swift
+@@ -8,28 +8,35 @@ import SwiftUI
+     
+     var body: some Scene {
+         WindowGroup {
+-            switch progress {
+-            case .overview:
+-                iConnectOverview(progress: $progress)
+-            case .home:
+-                iConnectHome(progress: $progress)
+-            case .profile:
+-                Profile(progress: $progress)
+-            case .connectionSelector:
+-                ConnectionSelector(progress: $progress, connectionType: $connectionType)
+-            case .searchScreen:
+-                SearchScreen(progress: $progress, connectionType: $connectionType)
+-            case .matchScreen:
+-                switch connectionType {
+-                case .studentConnect:
+-                    StudentMatchScreen(connectionType: $connectionType, progress: $progress)
+-                case .homeLink:
+-                    FamilyMatchScreen(connectionType: $connectionType, progress: $progress)
+-                case .penPal:
+-                    PenPalMatchScreen(connectionType: $connectionType, progress: $progress)
++            Group {
++                switch progress {
++                case .overview:
++                    iConnectOverview(progress: $progress, connectionType: $connectionType)
++                case .home:
++                    iConnectHome(progress: $progress)
++                case .profile:
++                    Profile(progress: $progress)
++                case .connectionSelector:
++                    ConnectionSelector(progress: $progress, connectionType: $connectionType)
++                case .searchScreen:
++                    SearchScreen(progress: $progress, connectionType: $connectionType)
++                case .matchScreen:
++                    switch connectionType {
++                    case .studentConnect:
++                        StudentMatchScreen(connectionType: $connectionType, progress: $progress)
++                    case .homeLink:
++                        FamilyMatchScreen(connectionType: $connectionType, progress: $progress)
++                    case .penPal:
++                        PenPalMatchScreen(connectionType: $connectionType, progress: $progress)
++                    }
++                case nil:
++                    Home(progress: $progress)
++                }
++            }
++            .onAppear {
++                if let savedType = appData.selectedConnectionType {
++                    connectionType = savedType
+                 }
+-            case nil:
+-                Home(progress: $progress)
+             }
+         }
+         .environment(appData)
+diff --git a/iConnect/PenPalInfo.swift b/iConnect/PenPalInfo.swift
+index 203e10b..0d6ea90 100644
+--- a/iConnect/PenPalInfo.swift
++++ b/iConnect/PenPalInfo.swift
+@@ -8,8 +8,155 @@
+ import SwiftUI
+ 
+ struct PenPalInfo: View {
++    
++    @Environment(\.dismiss) private var dismiss
++    
++    private let brandRed = Color(red: 0.65, green: 0.09, blue: 0.19)
++    private let subtitleColor = Color(white: 0.40)
++    
+     var body: some View {
+-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
++        VStack(spacing: 0) {
++            HStack {
++                Text("About this connection")
++                    .rockwellFont(13).bold()
++                    .foregroundStyle(brandRed)
++                Spacer()
++                Button {
++                    dismiss()
++                } label: {
++                    Text("Done")
++                        .rockwellFont(15).bold()
++                        .foregroundStyle(brandRed)
++                }
++            }
++            .padding(.horizontal, 20)
++            .padding(.top, 20)
++            .padding(.bottom, 14)
++            
++            ScrollView {
++                VStack(alignment: .leading, spacing: 20) {
++                    // Hero banner
++                    ZStack {
++                        VStack(alignment: .leading, spacing: 4) {
++                            Text("CONNECTION TYPE")
++                                .rockwellFont(11).bold()
++                                .tracking(0.8)
++                                .foregroundStyle(.white.opacity(0.85))
++                            
++                            Text("Pen & pal")
++                                .rockwellFont(24).bold()
++                                .foregroundStyle(.white)
++                            
++                            Spacer()
++                        }
++                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
++                        .padding(.top, 18)
++                        .padding(.leading, 18)
++                        .padding(.trailing, 106)
++                        
++                        VStack {
++                            Spacer()
++                            HStack {
++                                Spacer()
++                                Circle()
++                                    .fill(.white)
++                                    .frame(width: 78, height: 78)
++                                    .overlay {
++                                        Image(systemName: "envelope")
++                                            .font(.system(size: 28, weight: .regular))
++                                            .foregroundStyle(brandRed)
++                                            .offset(y: -3)
++                                    }
++                                    .offset(y: 14)
++                                    .padding(.trailing, 16)
++                            }
++                        }
++                    }
++                    .frame(height: 112)
++                    .frame(maxWidth: .infinity)
++                    .background(
++                        RoundedRectangle(cornerRadius: 12, style: .continuous)
++                            .fill(brandRed)
++                    )
++                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
++                    
++                    // Overview description
++                    VStack(alignment: .leading, spacing: 8) {
++                        Text("What is Pen & pal?")
++                            .rockwellFont(18).bold()
++                            .foregroundStyle(.primary)
++                        
++                        Text("Pen & pal is tailored for more introverted students — or anyone who prefers a quieter way to connect — who would rather correspond through physical letters sent via the mail than meet up in person.")
++                            .rockwellFont(15)
++                            .foregroundStyle(subtitleColor)
++                            .lineSpacing(4)
++                    }
++                    .frame(maxWidth: .infinity, alignment: .leading)
++                    .padding(18)
++                    .background(
++                        RoundedRectangle(cornerRadius: 14, style: .continuous)
++                            .fill(brandRed.opacity(0.05))
++                    )
++                    
++                    // Key highlights
++                    VStack(alignment: .leading, spacing: 14) {
++                        Text("How it works")
++                            .rockwellFont(18).bold()
++                            .foregroundStyle(.primary)
++                        
++                        highlightRow(
++                            symbol: "envelope.open",
++                            title: "Physical letters by mail",
++                            detail: "Exchange handwritten letters through the post rather than arranging face-to-face meetups."
++                        )
++                        
++                        highlightRow(
++                            symbol: "sparkles",
++                            title: "No pressure to meet up",
++                            detail: "Ideal for introverted students who enjoy thoughtful, low-pressure one-to-one connection."
++                        )
++                        
++                        highlightRow(
++                            symbol: "character.book.closed",
++                            title: "Share stories & languages",
++                            detail: "Get to know another student from a different accommodation and practise a language at your own pace."
++                        )
++                    }
++                    .frame(maxWidth: .infinity, alignment: .leading)
++                    .padding(18)
++                    .background(
++                        RoundedRectangle(cornerRadius: 14, style: .continuous)
++                            .fill(brandRed.opacity(0.05))
++                    )
++                }
++                .padding(.horizontal, 20)
++                .padding(.bottom, 24)
++            }
++        }
++    }
++    
++    private func highlightRow(symbol: String, title: String, detail: String) -> some View {
++        HStack(alignment: .top, spacing: 12) {
++            Circle()
++                .fill(brandRed.opacity(0.10))
++                .frame(width: 36, height: 36)
++                .overlay {
++                    Image(systemName: symbol)
++                        .font(.system(size: 15, weight: .medium))
++                        .foregroundStyle(brandRed)
++                }
++            
++            VStack(alignment: .leading, spacing: 3) {
++                Text(title)
++                    .rockwellFont(15).bold()
++                    .foregroundStyle(.primary)
++                
++                Text(detail)
++                    .rockwellFont(13)
++                    .foregroundStyle(subtitleColor)
++                    .lineSpacing(2)
++            }
++        }
+     }
+ }
+ 
+diff --git a/iConnect/PenPalMatchScreen.swift b/iConnect/PenPalMatchScreen.swift
+index 3ef68ee..5e729b9 100644
+--- a/iConnect/PenPalMatchScreen.swift
++++ b/iConnect/PenPalMatchScreen.swift
+@@ -6,6 +6,7 @@
+ //
+ 
+ import SwiftUI
++import MessageUI
+ 
+ struct PenPalMatchScreen: View {
+     
+@@ -13,11 +14,281 @@ struct PenPalMatchScreen: View {
+     @Binding var connectionType: AppData.ConnectionType
+     @Binding var progress: AppData.Progress?
+     
++    @State private var tapped = false
++    @State private var activeComposer: ComposerSheet?
++    @State private var unavailableAlert: UnavailableAlert?
++    
++    private enum ComposerSheet: Identifiable {
++        case message, email
++        var id: Self { self }
++    }
++    
++    private struct UnavailableAlert {
++        let title: String
++        let message: String
++    }
++    
++    private let brandRed = Color(red: 0.65, green: 0.09, blue: 0.19)
++    private let labelColor = Color(white: 0.42)
++    
++    private let matchName = "John Doe"
++    private let matchEmail = "johndoe@gmail.com"
++    private let matchYear = "Year 2"
++    private let matchPhoneNumber = "+44 7700 900412"
++    
++    private var matchFirstName: String {
++        matchName.split(separator: " ").first.map(String.init) ?? matchName
++    }
++    
++    private var matchNationality: String {
++        appData.language
++    }
++    
++    private var matchCourse: String {
++        if let unwrappedCourse = appData.course {
++            return unwrappedCourse
++        } else {
++            return "" // It should never come to this, but force unwrapping would cause preview to crash
++        }
++    }
++    
++    private var matchInterests: String {
++        appData.interests ?? ""
++    }
++    
+     var body: some View {
+-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
++        VStack(spacing: 0) {
++            HStack {
++                MonthHeader()
++                Button {
++                    tapped.toggle()
++                    progress = .overview
++                } label : {
++                    Text("Back")
++                }
++                .padding(.trailing, 25)
++                .buttonStyle(.glass)
++                .controlSize(.large)
++                .sensoryFeedback(.success, trigger: tapped)
++            }
++            
++            ScrollView {
++                VStack(alignment: .leading, spacing: 20) {
++                    Text("It’s a match!")
++                        .rockwellFont(26).bold()
++                        .padding(.top, 16)
++                    
++                    // Hero connection banner
++                    ZStack {
++                        VStack(alignment: .leading) {
++                            Text("Your Bristol connection")
++                                .rockwellFont(21).bold()
++                                .foregroundStyle(.white)
++                            Spacer()
++                        }
++                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
++                        .padding(.top, 20)
++                        .padding(.leading, 18)
++                        .padding(.trailing, 110)
++                        
++                        VStack {
++                            Spacer()
++                            HStack {
++                                Spacer()
++                                Circle()
++                                    .fill(.white)
++                                    .frame(width: 82, height: 82)
++                                    .overlay {
++                                        Image(systemName: "person.2")
++                                            .font(.system(size: 30, weight: .regular))
++                                            .foregroundStyle(brandRed)
++                                            .offset(y: -2)
++                                    }
++                                    .overlay(alignment: .bottomTrailing) {
++                                        Circle()
++                                            .fill(brandRed)
++                                            .frame(width: 26, height: 26)
++                                            .overlay {
++                                                Image(systemName: "checkmark")
++                                                    .font(.system(size: 12, weight: .bold))
++                                                    .foregroundStyle(.white)
++                                            }
++                                            .offset(x: 4, y: -8)
++                                    }
++                                    .offset(y: 12)
++                                    .padding(.trailing, 16)
++                            }
++                        }
++                    }
++                    .frame(height: 118)
++                    .frame(maxWidth: .infinity)
++                    .background(
++                        RoundedRectangle(cornerRadius: 12, style: .continuous)
++                            .fill(brandRed)
++                    )
++                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
++                    
++                    Text("Set up a pen pal correspondence with your match!")
++                        .rockwellFont(22).bold()
++                        .padding(.top, 4)
++                        .lineSpacing(6)
++                    
++                    // Match details card
++                    VStack(alignment: .leading, spacing: 18) {
++                        detailField(label: "NAME") {
++                            Text(matchName)
++                                .rockwellFont(20).bold()
++                                .foregroundStyle(.primary)
++                        }
++                        
++                        detailField(label: "NATIONALITY") {
++                            Text(matchNationality)
++                                .rockwellFont(16)
++                                .foregroundStyle(.primary)
++                        }
++                        
++                        HStack(alignment: .top, spacing: 16) {
++                            detailField(label: "COURSE") {
++                                Text(matchCourse)
++                                    .rockwellFont(16)
++                                    .foregroundStyle(.primary)
++                            }
++                            .frame(maxWidth: .infinity, alignment: .leading)
++                            
++                            detailField(label: "YEAR OF STUDY") {
++                                Text(matchYear)
++                                    .rockwellFont(16)
++                                    .foregroundStyle(.primary)
++                            }
++                            .frame(maxWidth: .infinity, alignment: .leading)
++                        }
++                        
++                        detailField(label: "INTERESTS") {
++                            Text(matchInterests)
++                                .rockwellFont(16)
++                                .foregroundStyle(.primary)
++                        }
++                        
++                        HStack(spacing: 16) {
++                            detailField(label: "PHONE") {
++                                Button {
++                                    openMessageComposer()
++                                } label: {
++                                    Text(matchPhoneNumber)
++                                        .rockwellFont(15)
++                                        .foregroundStyle(brandRed)
++                                }
++                                .buttonStyle(.plain)
++                            }
++                            .frame(maxWidth: .infinity, alignment: .leading)
++                            
++                            detailField(label: "EMAIL") {
++                                Button {
++                                    openEmailComposer()
++                                } label: {
++                                    Text(matchEmail)
++                                        .rockwellFont(14)
++                                        .foregroundStyle(brandRed)
++                                }
++                                .buttonStyle(.plain)
++                            }
++                            .frame(maxWidth: .infinity, alignment: .leading)
++                        }
++                    }
++                    .frame(maxWidth: .infinity, alignment: .leading)
++                    .padding(20)
++                    .background(
++                        RoundedRectangle(cornerRadius: 14, style: .continuous)
++                            .fill(brandRed.opacity(0.05))
++                    )
++                }
++                .padding(.horizontal, 20)
++                .padding(.bottom, 12)
++            }
++            
++            Button {
++                tapped.toggle()
++                openMessageComposer()
++            } label: {
++                HStack {
++                    Text("Say hello by text")
++                        .rockwellFont(22)
++                    Spacer()
++                    Image(systemName: "arrow.right")
++                        .font(.system(size: 20, weight: .semibold))
++                }
++                .frame(maxWidth: .infinity, maxHeight: .infinity)
++                .padding(.horizontal, 20)
++            }
++            .buttonStyle(.custom(variant: .regular))
++            .frame(height: 115)
++            .padding(.horizontal, 20)
++            .padding(.top, 8)
++            .padding(.bottom, 6)
++            .sensoryFeedback(.success, trigger: tapped)
++            
++            CustomTabBar()
++        }
++        .onAppear {
++            appData.hasConnected = true
++        }
++        .sheet(item: $activeComposer) { composer in
++            switch composer {
++            case .message:
++                SCMessageView(recipient: matchPhoneNumber, recipientFirstName: matchFirstName)
++            case .email:
++                SCEmailView(recipient: matchEmail, recipientFirstName: matchFirstName)
++            }
++        }
++        .alert(
++            unavailableAlert?.title ?? "",
++            isPresented: Binding(
++                get: { unavailableAlert != nil },
++                set: { if !$0 { unavailableAlert = nil } }
++            )
++        ) {
++            Button("OK", role: .cancel) { }
++        } message: {
++            Text(unavailableAlert?.message ?? "")
++        }
++    }
++    
++    @ViewBuilder
++    private func detailField<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
++        VStack(alignment: .leading, spacing: 5) {
++            Text(label)
++                .rockwellFont(11).bold()
++                .tracking(0.8)
++                .foregroundStyle(labelColor)
++            
++            content()
++        }
++    }
++    
++    private func openMessageComposer() {
++        if MFMessageComposeViewController.canSendText() {
++            activeComposer = .message
++        } else {
++            unavailableAlert = UnavailableAlert(
++                title: "Messages Unavailable",
++                message: "Text messaging is not available on this device. You can text \(matchName) at \(matchPhoneNumber)."
++            )
++        }
++    }
++    
++    private func openEmailComposer() {
++        if MFMailComposeViewController.canSendMail() {
++            activeComposer = .email
++        } else {
++            unavailableAlert = UnavailableAlert(
++                title: "Mail Unavailable",
++                message: "Mail is not configured on this device. You can email \(matchName) at \(matchEmail)."
++            )
++        }
+     }
+ }
+ 
++
+ #Preview {
+     PenPalMatchScreen(connectionType: .constant(.penPal), progress: .constant(.matchScreen))
+         .environment(AppData())
+diff --git a/iConnect/Profile.swift b/iConnect/Profile.swift
+index 8d53dc4..1615baa 100644
+--- a/iConnect/Profile.swift
++++ b/iConnect/Profile.swift
+@@ -20,33 +20,28 @@ struct Profile: View {
+     @State private var course: String = ""
+     @State private var selectedYear: AppData.CourseYear?
+     @State private var selectedLanguage: String = "English"
+-    @State private var showingLanguagePicker = false
++    @State private var activePickerSheet: PickerSheet?
+     @State private var accommodation: String = ""
+     @State private var interests: String = ""
+     @State private var selectedStatus: AppData.StudentStatus = .international
+     
++    private enum PickerSheet: Identifiable {
++        case language, accommodation
++        var id: Self { self }
++    }
++    
+     private let brandRed = Color(red: 0.65, green: 0.09, blue: 0.19)
+     private let borderColor = Color(white: 0.85)
+     private let labelColor = Color(white: 0.28)
+     private let placeholderColor = Color(white: 0.45)
+     
+-    private let accommodationOptions = [
+-        "North Village",
+-        "East Village",
+-        "West Village",
+-        "Other undergraduate accomodation",
+-        "Private Halls",
+-        "Private Housing",
+-        "Living at Home (in Bristol)",
+-        "Commuting from different region",
+-    ]
+-    
+     private var isFirstnameMissing: Bool { nonEmpty(firstname) == nil }
+     private var isSurnameMissing: Bool { nonEmpty(surname) == nil }
+     private var isCourseMissing: Bool { nonEmpty(course) == nil }
+     private var isYearMissing: Bool { selectedYear == nil }
+     private var isLanguageMissing: Bool { nonEmpty(selectedLanguage) == nil }
+     private var isAccommodationMissing: Bool { nonEmpty(accommodation) == nil }
++    private var isInterestsMissing: Bool { nonEmpty(interests) == nil }
+     
+     private var isFormValid: Bool {
+         !isFirstnameMissing &&
+@@ -54,7 +49,8 @@ struct Profile: View {
+         !isCourseMissing &&
+         !isYearMissing &&
+         !isLanguageMissing &&
+-        !isAccommodationMissing
++        !isAccommodationMissing &&
++        !isInterestsMissing
+     }
+     
+     var body: some View {
+@@ -146,7 +142,7 @@ struct Profile: View {
+                     HStack(spacing: 12) {
+                         fieldContainer(title: "Language", isRequired: true) {
+                             Button {
+-                                showingLanguagePicker = true
++                                activePickerSheet = .language
+                             } label: {
+                                 dropdownLabel(
+                                     text: selectedLanguage,
+@@ -158,15 +154,8 @@ struct Profile: View {
+                         }
+                         
+                         fieldContainer(title: "Accommodation", isRequired: true) {
+-                            Menu {
+-                                ForEach(accommodationOptions, id: \.self) { option in
+-                                    Button {
+-                                        accommodation = option
+-                                    } label: {
+-                                        Text(option)
+-                                            .rockwellFont(14)
+-                                    }
+-                                }
++                            Button {
++                                activePickerSheet = .accommodation
+                             } label: {
+                                 dropdownLabel(
+                                     text: accommodation.isEmpty ? "Select" : accommodation,
+@@ -174,11 +163,12 @@ struct Profile: View {
+                                     isInvalid: showValidationErrors && isAccommodationMissing
+                                 )
+                             }
++                            .buttonStyle(.plain)
+                         }
+                     }
+                     
+                     // Interests (optional)
+-                    fieldContainer(title: "Interests", isRequired: false) {
++                    fieldContainer(title: "Interests", isRequired: true) {
+                         TextField("Add your interests", text: $interests)
+                             .rockwellFont(14)
+                             .modifier(InputFieldModifier(borderColor: borderColor, lineWidth: 1))
+@@ -274,13 +264,25 @@ struct Profile: View {
+         .onAppear {
+             loadExistingProfile()
+         }
+-        .sheet(isPresented: $showingLanguagePicker) {
+-            LanguagePickerSheet(
+-                selectedLanguage: $selectedLanguage,
+-                languages: AppData.majorLanguages,
+-                brandRed: brandRed,
+-                borderColor: borderColor
+-            )
++        .sheet(item: $activePickerSheet) { sheet in
++            Group {
++                switch sheet {
++                case .language:
++                    LanguagePickerSheet(
++                        selectedLanguage: $selectedLanguage,
++                        languages: AppData.majorLanguages,
++                        brandRed: brandRed,
++                        borderColor: borderColor
++                    )
++                case .accommodation:
++                    AccommodationPickerSheet(
++                        selectedAccommodation: $accommodation,
++                        sections: AppData.accommodationSections,
++                        brandRed: brandRed,
++                        borderColor: borderColor
++                    )
++                }
++            }
+             .presentationDetents([.medium, .large])
+             .presentationDragIndicator(.visible)
+         }
+@@ -497,6 +499,134 @@ private struct LanguagePickerSheet: View {
+     }
+ }
+ 
++private struct AccommodationPickerSheet: View {
++    @Binding var selectedAccommodation: String
++    let sections: [(title: String, items: [String])]
++    let brandRed: Color
++    let borderColor: Color
++    
++    @Environment(\.dismiss) private var dismiss
++    @State private var searchText: String = ""
++    
++    private var filteredSections: [(title: String, items: [String])] {
++        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
++        guard !query.isEmpty else { return sections }
++        return sections.compactMap { section in
++            if section.title.localizedCaseInsensitiveContains(query) {
++                return section
++            }
++            let matchingItems = section.items.filter { $0.localizedCaseInsensitiveContains(query) }
++            return matchingItems.isEmpty ? nil : (section.title, matchingItems)
++        }
++    }
++    
++    var body: some View {
++        VStack(spacing: 0) {
++            HStack {
++                Text("Select accommodation")
++                    .rockwellFont(20).bold()
++                Spacer()
++                Button {
++                    dismiss()
++                } label: {
++                    Text("Done")
++                        .rockwellFont(15).bold()
++                        .foregroundStyle(brandRed)
++                }
++            }
++            .padding(.horizontal, 20)
++            .padding(.top, 20)
++            .padding(.bottom, 12)
++            
++            HStack(spacing: 8) {
++                Image(systemName: "magnifyingglass")
++                    .font(.system(size: 14, weight: .medium))
++                    .foregroundStyle(Color(white: 0.45))
++                TextField("Search accommodation", text: $searchText)
++                    .rockwellFont(14)
++                    .textInputAutocapitalization(.never)
++                    .autocorrectionDisabled()
++                if !searchText.isEmpty {
++                    Button {
++                        searchText = ""
++                    } label: {
++                        Image(systemName: "xmark.circle.fill")
++                            .font(.system(size: 15))
++                            .foregroundStyle(Color(white: 0.55))
++                    }
++                    .buttonStyle(.plain)
++                }
++            }
++            .padding(.horizontal, 12)
++            .frame(height: 44)
++            .background(
++                RoundedRectangle(cornerRadius: 10, style: .continuous)
++                    .fill(Color(.systemBackground))
++            )
++            .overlay(
++                RoundedRectangle(cornerRadius: 10, style: .continuous)
++                    .stroke(borderColor, lineWidth: 1)
++            )
++            .padding(.horizontal, 20)
++            .padding(.bottom, 12)
++            
++            Divider()
++            
++            if filteredSections.isEmpty {
++                Text("No accommodation found")
++                    .rockwellFont(14)
++                    .foregroundStyle(Color(white: 0.45))
++                    .frame(maxWidth: .infinity, maxHeight: .infinity)
++            } else {
++                ScrollView {
++                    LazyVStack(alignment: .leading, spacing: 0) {
++                        ForEach(filteredSections, id: \.title) { section in
++                            Text(section.title.uppercased())
++                                .rockwellFont(11).bold()
++                                .tracking(0.8)
++                                .foregroundStyle(brandRed)
++                                .frame(maxWidth: .infinity, alignment: .leading)
++                                .padding(.horizontal, 20)
++                                .padding(.top, 16)
++                                .padding(.bottom, 6)
++                                .background(brandRed.opacity(0.04))
++                            
++                            ForEach(section.items, id: \.self) { place in
++                                let isSelected = place == selectedAccommodation
++                                Button {
++                                    selectedAccommodation = place
++                                    dismiss()
++                                } label: {
++                                    HStack {
++                                        Text(place)
++                                            .rockwellFont(15)
++                                            .fontWeight(isSelected ? .bold : .regular)
++                                            .foregroundStyle(isSelected ? brandRed : .primary)
++                                        Spacer()
++                                        if isSelected {
++                                            Image(systemName: "checkmark")
++                                                .font(.system(size: 14, weight: .bold))
++                                                .foregroundStyle(brandRed)
++                                        }
++                                    }
++                                    .padding(.horizontal, 20)
++                                    .padding(.vertical, 14)
++                                    .contentShape(Rectangle())
++                                }
++                                .buttonStyle(.plain)
++                                
++                                Divider()
++                                    .padding(.leading, 20)
++                            }
++                        }
++                    }
++                }
++                .scrollDismissesKeyboard(.interactively)
++            }
++        }
++    }
++}
++
+ #Preview {
+     Profile(progress: .constant(.profile))
+         .environment(AppData())
+diff --git a/iConnect/StudentConnectInfo.swift b/iConnect/StudentConnectInfo.swift
+index 29b3d10..3ec8905 100644
+--- a/iConnect/StudentConnectInfo.swift
++++ b/iConnect/StudentConnectInfo.swift
+@@ -8,8 +8,155 @@
+ import SwiftUI
+ 
+ struct StudentConnectInfo: View {
++    
++    @Environment(\.dismiss) private var dismiss
++    
++    private let brandRed = Color(red: 0.65, green: 0.09, blue: 0.19)
++    private let subtitleColor = Color(white: 0.40)
++    
+     var body: some View {
+-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
++        VStack(spacing: 0) {
++            HStack {
++                Text("About this connection")
++                    .rockwellFont(13).bold()
++                    .foregroundStyle(brandRed)
++                Spacer()
++                Button {
++                    dismiss()
++                } label: {
++                    Text("Done")
++                        .rockwellFont(15).bold()
++                        .foregroundStyle(brandRed)
++                }
++            }
++            .padding(.horizontal, 20)
++            .padding(.top, 20)
++            .padding(.bottom, 14)
++            
++            ScrollView {
++                VStack(alignment: .leading, spacing: 20) {
++                    // Hero banner
++                    ZStack {
++                        VStack(alignment: .leading, spacing: 4) {
++                            Text("CONNECTION TYPE")
++                                .rockwellFont(11).bold()
++                                .tracking(0.8)
++                                .foregroundStyle(.white.opacity(0.85))
++                            
++                            Text("Student connect")
++                                .rockwellFont(24).bold()
++                                .foregroundStyle(.white)
++                            
++                            Spacer()
++                        }
++                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
++                        .padding(.top, 18)
++                        .padding(.leading, 18)
++                        .padding(.trailing, 106)
++                        
++                        VStack {
++                            Spacer()
++                            HStack {
++                                Spacer()
++                                Circle()
++                                    .fill(.white)
++                                    .frame(width: 78, height: 78)
++                                    .overlay {
++                                        Image(systemName: "person.2")
++                                            .font(.system(size: 28, weight: .regular))
++                                            .foregroundStyle(brandRed)
++                                            .offset(y: -3)
++                                    }
++                                    .offset(y: 14)
++                                    .padding(.trailing, 16)
++                            }
++                        }
++                    }
++                    .frame(height: 112)
++                    .frame(maxWidth: .infinity)
++                    .background(
++                        RoundedRectangle(cornerRadius: 12, style: .continuous)
++                            .fill(brandRed)
++                    )
++                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
++                    
++                    // Overview description
++                    VStack(alignment: .leading, spacing: 8) {
++                        Text("What is Student connect?")
++                            .rockwellFont(18).bold()
++                            .foregroundStyle(.primary)
++                        
++                        Text("Student connect pairs international and home students of the same or similar heritage and origin. It’s designed to reduce the risk of international students feeling isolated at university and to help ease the language barrier when settling into life in Bristol.")
++                            .rockwellFont(15)
++                            .foregroundStyle(subtitleColor)
++                            .lineSpacing(4)
++                    }
++                    .frame(maxWidth: .infinity, alignment: .leading)
++                    .padding(18)
++                    .background(
++                        RoundedRectangle(cornerRadius: 14, style: .continuous)
++                            .fill(brandRed.opacity(0.05))
++                    )
++                    
++                    // Key highlights
++                    VStack(alignment: .leading, spacing: 14) {
++                        Text("How it works")
++                            .rockwellFont(18).bold()
++                            .foregroundStyle(.primary)
++                        
++                        highlightRow(
++                            symbol: "globe.europe.africa",
++                            title: "Shared heritage & language",
++                            detail: "Connect one-to-one with a fellow student from a similar cultural or linguistic background."
++                        )
++                        
++                        highlightRow(
++                            symbol: "cup.and.saucer",
++                            title: "Flexible meetups",
++                            detail: "Arrange casual meetups privately at times and places that suit you both."
++                        )
++                        
++                        highlightRow(
++                            symbol: "heart",
++                            title: "Feel at home",
++                            detail: "Build a friendly support network and ease the transition into university life."
++                        )
++                    }
++                    .frame(maxWidth: .infinity, alignment: .leading)
++                    .padding(18)
++                    .background(
++                        RoundedRectangle(cornerRadius: 14, style: .continuous)
++                            .fill(brandRed.opacity(0.05))
++                    )
++                }
++                .padding(.horizontal, 20)
++                .padding(.bottom, 24)
++            }
++        }
++    }
++    
++    private func highlightRow(symbol: String, title: String, detail: String) -> some View {
++        HStack(alignment: .top, spacing: 12) {
++            Circle()
++                .fill(brandRed.opacity(0.10))
++                .frame(width: 36, height: 36)
++                .overlay {
++                    Image(systemName: symbol)
++                        .font(.system(size: 15, weight: .medium))
++                        .foregroundStyle(brandRed)
++                }
++            
++            VStack(alignment: .leading, spacing: 3) {
++                Text(title)
++                    .rockwellFont(15).bold()
++                    .foregroundStyle(.primary)
++                
++                Text(detail)
++                    .rockwellFont(13)
++                    .foregroundStyle(subtitleColor)
++                    .lineSpacing(2)
++            }
++        }
+     }
+ }
+ 
+diff --git a/iConnect/StudentMatchScreen.swift b/iConnect/StudentMatchScreen.swift
+index aa4e327..7dd4966 100644
+--- a/iConnect/StudentMatchScreen.swift
++++ b/iConnect/StudentMatchScreen.swift
+@@ -15,21 +15,47 @@ struct StudentMatchScreen: View {
+     @Binding var progress: AppData.Progress?
+     
+     @State private var tapped = false
+-    @State private var showingEmailSheet = false
+-    @State private var showingMailUnavailableAlert = false
++    @State private var activeComposer: ComposerSheet?
++    @State private var unavailableAlert: UnavailableAlert?
++    
++    private enum ComposerSheet: Identifiable {
++        case message, email
++        var id: Self { self }
++    }
++    
++    private struct UnavailableAlert {
++        let title: String
++        let message: String
++    }
+     
+     private let brandRed = Color(red: 0.65, green: 0.09, blue: 0.19)
+     private let labelColor = Color(white: 0.42)
+     
+-    private let matchName = "Carlos Mendoza"
+-    private let matchCourse = "Computer Science"
++    private let matchName = "John Doe"
++    private let matchEmail = "johndoe@gmail.com"
+     private let matchYear = "Year 2"
+-    private let matchEmail = "carlos.mendoza@bristol.ac.uk"
++    private let matchPhoneNumber = "+44 7700 900412"
++    
++    private var matchFirstName: String {
++        matchName.split(separator: " ").first.map(String.init) ?? matchName
++    }
+     
+     private var matchNationality: String {
+         appData.language
+     }
+     
++    private var matchCourse: String {
++        if let unwrappedCourse = appData.course {
++            return unwrappedCourse
++        } else {
++            return "" // It should never come to this, but force unwrapping would cause preview to crash
++        }
++    }
++    
++    private var matchInterests: String {
++        appData.interests ?? ""
++    }
++    
+     var body: some View {
+         VStack(spacing: 0) {
+             HStack {
+@@ -136,15 +162,36 @@ struct StudentMatchScreen: View {
+                             .frame(maxWidth: .infinity, alignment: .leading)
+                         }
+                         
+-                        detailField(label: "EMAIL") {
+-                            Button {
+-                                openEmailComposer()
+-                            } label: {
+-                                Text(matchEmail)
+-                                    .rockwellFont(15)
+-                                    .foregroundStyle(brandRed)
++                        detailField(label: "INTERESTS") {
++                            Text(matchInterests)
++                                .rockwellFont(16)
++                                .foregroundStyle(.primary)
++                        }
++                        
++                        HStack(spacing: 16) {
++                            detailField(label: "PHONE") {
++                                Button {
++                                    openMessageComposer()
++                                } label: {
++                                    Text(matchPhoneNumber)
++                                        .rockwellFont(15)
++                                        .foregroundStyle(brandRed)
++                                }
++                                .buttonStyle(.plain)
+                             }
+-                            .buttonStyle(.plain)
++                            .frame(maxWidth: .infinity, alignment: .leading)
++                            
++                            detailField(label: "EMAIL") {
++                                Button {
++                                    openEmailComposer()
++                                } label: {
++                                    Text(matchEmail)
++                                        .rockwellFont(14)
++                                        .foregroundStyle(brandRed)
++                                }
++                                .buttonStyle(.plain)
++                            }
++                            .frame(maxWidth: .infinity, alignment: .leading)
+                         }
+                     }
+                     .frame(maxWidth: .infinity, alignment: .leading)
+@@ -160,10 +207,10 @@ struct StudentMatchScreen: View {
+             
+             Button {
+                 tapped.toggle()
+-                openEmailComposer()
++                openMessageComposer()
+             } label: {
+                 HStack {
+-                    Text("Say hello by email")
++                    Text("Say hello by text")
+                         .rockwellFont(22)
+                     Spacer()
+                     Image(systemName: "arrow.right")
+@@ -184,13 +231,24 @@ struct StudentMatchScreen: View {
+         .onAppear {
+             appData.hasConnected = true
+         }
+-        .sheet(isPresented: $showingEmailSheet) {
+-            SCEmailView(recipient: matchEmail, recipientFirstName: "Carlos")
++        .sheet(item: $activeComposer) { composer in
++            switch composer {
++            case .message:
++                SCMessageView(recipient: matchPhoneNumber, recipientFirstName: matchFirstName)
++            case .email:
++                SCEmailView(recipient: matchEmail, recipientFirstName: matchFirstName)
++            }
+         }
+-        .alert("Mail Unavailable", isPresented: $showingMailUnavailableAlert) {
++        .alert(
++            unavailableAlert?.title ?? "",
++            isPresented: Binding(
++                get: { unavailableAlert != nil },
++                set: { if !$0 { unavailableAlert = nil } }
++            )
++        ) {
+             Button("OK", role: .cancel) { }
+         } message: {
+-            Text("Mail is not configured on this device. You can email \(matchName) at \(matchEmail).")
++            Text(unavailableAlert?.message ?? "")
+         }
+     }
+     
+@@ -206,11 +264,66 @@ struct StudentMatchScreen: View {
+         }
+     }
+     
++    private func openMessageComposer() {
++        if MFMessageComposeViewController.canSendText() {
++            activeComposer = .message
++        } else {
++            unavailableAlert = UnavailableAlert(
++                title: "Messages Unavailable",
++                message: "Text messaging is not available on this device. You can text \(matchName) at \(matchPhoneNumber)."
++            )
++        }
++    }
++    
+     private func openEmailComposer() {
+         if MFMailComposeViewController.canSendMail() {
+-            showingEmailSheet = true
++            activeComposer = .email
+         } else {
+-            showingMailUnavailableAlert = true
++            unavailableAlert = UnavailableAlert(
++                title: "Mail Unavailable",
++                message: "Mail is not configured on this device. You can email \(matchName) at \(matchEmail)."
++            )
++        }
++    }
++}
++
++struct SCMessageView: UIViewControllerRepresentable {
++    @Environment(\.dismiss) private var dismiss
++    
++    var recipient: String = "+44 7700 900412"
++    var recipientFirstName: String = "John"
++    
++    func makeUIViewController(context: Context) -> MFMessageComposeViewController {
++        let composer = MFMessageComposeViewController()
++        composer.messageComposeDelegate = context.coordinator
++        
++        composer.recipients = [recipient]
++        composer.body = "Hi \(recipientFirstName), we matched on iConnect! Would you like to meet at a café?"
++        
++        return composer
++    }
++    
++    func updateUIViewController(
++        _ uiViewController: MFMessageComposeViewController,
++        context: Context
++    ) { }
++    
++    func makeCoordinator() -> Coordinator {
++        Coordinator(dismiss: dismiss)
++    }
++    
++    final class Coordinator: NSObject, MFMessageComposeViewControllerDelegate {
++        private let dismiss: DismissAction
++        
++        init(dismiss: DismissAction) {
++            self.dismiss = dismiss
++        }
++        
++        func messageComposeViewController(
++            _ controller: MFMessageComposeViewController,
++            didFinishWith result: MessageComposeResult
++        ) {
++            dismiss()
+         }
+     }
+ }
+@@ -218,8 +331,9 @@ struct StudentMatchScreen: View {
+ struct SCEmailView: UIViewControllerRepresentable {
+     @Environment(\.dismiss) private var dismiss
+     
+-    var recipient: String = "carlos.mendoza@bristol.ac.uk"
+-    var recipientFirstName: String = "Carlos"
++    var recipient: String = "johndoe@gmail.com"
++    var recipientFirstName: String = "John"
++    var greeting: String = "Hi"
+     
+     func makeUIViewController(context: Context) -> MFMailComposeViewController {
+         let composer = MFMailComposeViewController()
+@@ -227,7 +341,7 @@ struct SCEmailView: UIViewControllerRepresentable {
+         
+         composer.setToRecipients([recipient])
+         composer.setSubject("Arrange a meetup")
+-        composer.setMessageBody("Hi \(recipientFirstName),", isHTML: false)
++        composer.setMessageBody("\(greeting) \(recipientFirstName),", isHTML: false)
+         
+         return composer
+     }
+diff --git a/iConnect/iConnectOverview.swift b/iConnect/iConnectOverview.swift
+index 37997bb..8a23421 100644
+--- a/iConnect/iConnectOverview.swift
++++ b/iConnect/iConnectOverview.swift
+@@ -11,13 +11,519 @@ struct iConnectOverview: View {
+     
+     @Environment(AppData.self) private var appData
+     @Binding var progress: AppData.Progress?
++    @Binding var connectionType: AppData.ConnectionType
++    
++    @State private var tapped = false
++    @State private var savedTapped = false
++    @State private var selectedDays: Set<String> = []
++    @State private var meetupTime: String = ""
++    @State private var meetupLocation: String = ""
++    @State private var showingTimePicker = false
++    @State private var pickerDate: Date = Self.defaultPickerDate()
++    @State private var showSavedConfirmation = false
++    
++    private let brandRed = Color(red: 0.65, green: 0.09, blue: 0.19)
++    private let borderColor = Color(white: 0.85)
++    private let labelColor = Color(white: 0.42)
++    private let placeholderColor = Color(white: 0.45)
++    
++    private let weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
++    
++    private var connectionTitle: String {
++        switch connectionType {
++        case .studentConnect: "Student connect"
++        case .homeLink: "Home link"
++        case .penPal: "Pen & pal"
++        }
++    }
++    
++    private var connectionSubtitle: String {
++        switch connectionType {
++        case .studentConnect: "Matched with John Doe"
++        case .homeLink: "Hosted by Dr Priya Shah · 2 students"
++        case .penPal: "Matched with John Doe"
++        }
++    }
++    
++    private var connectionSymbol: String {
++        switch connectionType {
++        case .studentConnect: "person.2"
++        case .homeLink: "house"
++        case .penPal: "envelope"
++        }
++    }
++    
++    private var orderedSelectedDays: [String] {
++        weekdays.filter { selectedDays.contains($0) }
++    }
++    
++    private var hasUnsavedChanges: Bool {
++        let savedDays = Set(appData.meetupDays)
++        let savedTime = appData.meetupTime ?? ""
++        let savedLocation = appData.meetupLocation ?? ""
++        let currentLocation = meetupLocation.trimmingCharacters(in: .whitespacesAndNewlines)
++        
++        return selectedDays != savedDays ||
++               meetupTime != savedTime ||
++               currentLocation != savedLocation
++    }
++    
++    var body: some View {
++        VStack(spacing: 0) {
++            HStack {
++                MonthHeader()
++                Button {
++                    tapped.toggle()
++                    progress = nil
++                } label: {
++                    Text("Home")
++                }
++                .padding(.trailing, 25)
++                .buttonStyle(.glass)
++                .controlSize(.large)
++                .sensoryFeedback(.success, trigger: tapped)
++            }
++            
++            ScrollView {
++                VStack(alignment: .leading, spacing: 20) {
++                    VStack(alignment: .leading, spacing: 6) {
++                        Text("Your iConnect")
++                            .rockwellFont(12).bold()
++                            .foregroundStyle(brandRed)
++                        
++                        Text("Connection overview")
++                            .rockwellFont(26).bold()
++                    }
++                    .padding(.top, 14)
++                    
++                    // Active connection summary card
++                    Button {
++                        tapped.toggle()
++                        progress = .matchScreen
++                    } label: {
++                        ZStack {
++                            VStack(alignment: .leading, spacing: 6) {
++                                Text("ACTIVE CONNECTION")
++                                    .rockwellFont(11).bold()
++                                    .tracking(0.8)
++                                    .foregroundStyle(.white.opacity(0.85))
++                                
++                                Text(connectionTitle)
++                                    .rockwellFont(22).bold()
++                                    .foregroundStyle(.white)
++                                
++                                Text(connectionSubtitle)
++                                    .rockwellFont(14)
++                                    .foregroundStyle(.white.opacity(0.92))
++                                    .multilineTextAlignment(.leading)
++                                
++                                Spacer(minLength: 4)
++                                
++                                HStack(spacing: 4) {
++                                    Text("View match details")
++                                        .rockwellFont(13).bold()
++                                    Image(systemName: "chevron.right")
++                                        .font(.system(size: 11, weight: .bold))
++                                }
++                                .foregroundStyle(.white.opacity(0.95))
++                            }
++                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
++                            .padding(.top, 18)
++                            .padding(.bottom, 16)
++                            .padding(.leading, 18)
++                            .padding(.trailing, 112)
++                            
++                            VStack {
++                                Spacer()
++                                HStack {
++                                    Spacer()
++                                    Circle()
++                                        .fill(.white)
++                                        .frame(width: 82, height: 82)
++                                        .overlay {
++                                            Image(systemName: connectionSymbol)
++                                                .font(.system(size: 30, weight: .regular))
++                                                .foregroundStyle(brandRed)
++                                                .offset(y: -3)
++                                        }
++                                        .offset(y: 14)
++                                        .padding(.trailing, 16)
++                                }
++                            }
++                        }
++                        .frame(maxWidth: .infinity, maxHeight: .infinity)
++                        .padding(.bottom, -55)
++                    }
++                    .buttonStyle(.custom(variant: .regular))
++                    .frame(height: 150)
++                    .sensoryFeedback(.success, trigger: tapped)
++                    
++                    if connectionType != .penPal {
++                        meetupSection
++                    } else {
++                        penPalSection
++                    }
++                }
++                .frame(maxWidth: .infinity, alignment: .leading)
++                .padding(.horizontal, 20)
++                .padding(.bottom, 12)
++            }
++            .scrollDismissesKeyboard(.interactively)
++            
++            if connectionType != .penPal {
++                Button {
++                    saveMeetupDetails()
++                    savedTapped.toggle()
++                } label: {
++                    HStack {
++                        Text("Save meetup details")
++                            .rockwellFont(22)
++                        Spacer()
++                        Image(systemName: "checkmark")
++                            .font(.system(size: 20, weight: .semibold))
++                    }
++                    .frame(maxWidth: .infinity, maxHeight: .infinity)
++                    .padding(.horizontal, 20)
++                }
++                .buttonStyle(.custom(variant: .regular))
++                .saturation(hasUnsavedChanges ? 1.0 : 0.0)
++                .opacity(hasUnsavedChanges ? 1.0 : 0.45)
++                .disabled(!hasUnsavedChanges)
++                .animation(.easeInOut(duration: 0.2), value: hasUnsavedChanges)
++                .frame(height: 115)
++                .padding(.horizontal, 20)
++                .padding(.top, 8)
++                .padding(.bottom, 6)
++                .sensoryFeedback(.success, trigger: savedTapped)
++            } else {
++                Button {
++                    tapped.toggle()
++                    progress = .matchScreen
++                } label: {
++                    HStack {
++                        Text("View match details")
++                            .rockwellFont(22)
++                        Spacer()
++                        Image(systemName: "arrow.right")
++                            .font(.system(size: 20, weight: .semibold))
++                    }
++                    .frame(maxWidth: .infinity, maxHeight: .infinity)
++                    .padding(.horizontal, 20)
++                }
++                .buttonStyle(.custom(variant: .regular))
++                .frame(height: 115)
++                .padding(.horizontal, 20)
++                .padding(.top, 8)
++                .padding(.bottom, 6)
++                .sensoryFeedback(.success, trigger: tapped)
++            }
++            
++            CustomTabBar()
++        }
++        .onAppear {
++            appData.hasConnected = true
++            loadMeetupDetails()
++        }
++        .sheet(isPresented: $showingTimePicker) {
++            MeetupTimePickerSheet(
++                pickerDate: $pickerDate,
++                meetupTime: $meetupTime,
++                brandRed: brandRed
++            )
++            .presentationDetents([.height(310)])
++            .presentationDragIndicator(.visible)
++        }
++    }
++    
++    // MARK: - Regular Meetup Section (Student Connect & HomeLink)
++    
++    private var meetupSection: some View {
++        VStack(alignment: .leading, spacing: 12) {
++            VStack(alignment: .leading, spacing: 4) {
++                Text("Regular meetup")
++                    .rockwellFont(20).bold()
++                
++                Text("Keep track of the meetups you’ve arranged with your \(connectionType == .homeLink ? "HomeLink family" : "matched student").")
++                    .rockwellFont(13)
++                    .foregroundStyle(labelColor)
++            }
++            .padding(.top, 4)
++            
++            VStack(alignment: .leading, spacing: 16) {
++                // Day(s) selector
++                VStack(alignment: .leading, spacing: 8) {
++                    Text("DAY(S)")
++                        .rockwellFont(11).bold()
++                        .tracking(0.8)
++                        .foregroundStyle(labelColor)
++                    
++                    HStack(spacing: 6) {
++                        ForEach(weekdays, id: \.self) { day in
++                            let isSelected = selectedDays.contains(day)
++                            Button {
++                                withAnimation(.easeInOut(duration: 0.15)) {
++                                    if isSelected {
++                                        selectedDays.remove(day)
++                                    } else {
++                                        selectedDays.insert(day)
++                                    }
++                                    showSavedConfirmation = false
++                                }
++                            } label: {
++                                Text(day)
++                                    .rockwellFont(12)
++                                    .fontWeight(isSelected ? .bold : .regular)
++                                    .foregroundStyle(isSelected ? .white : Color(white: 0.35))
++                                    .frame(maxWidth: .infinity)
++                                    .frame(height: 38)
++                                    .background(
++                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
++                                            .fill(isSelected ? brandRed : Color(.systemBackground))
++                                    )
++                                    .overlay(
++                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
++                                            .stroke(isSelected ? brandRed : borderColor, lineWidth: 1)
++                                    )
++                            }
++                            .buttonStyle(.plain)
++                        }
++                    }
++                }
++                
++                // Time (xx:xx)
++                VStack(alignment: .leading, spacing: 6) {
++                    Text("TIME")
++                        .rockwellFont(11).bold()
++                        .tracking(0.8)
++                        .foregroundStyle(labelColor)
++                    
++                    Button {
++                        syncPickerDateFromTime()
++                        showingTimePicker = true
++                    } label: {
++                        HStack {
++                            Text(meetupTime.isEmpty ? "xx:xx" : meetupTime)
++                                .rockwellFont(14)
++                                .foregroundStyle(meetupTime.isEmpty ? placeholderColor : .primary)
++                            Spacer()
++                            Image(systemName: "clock")
++                                .font(.system(size: 14, weight: .medium))
++                                .foregroundStyle(Color(white: 0.35))
++                        }
++                        .padding(.horizontal, 12)
++                        .frame(height: 44)
++                        .frame(maxWidth: .infinity)
++                        .background(
++                            RoundedRectangle(cornerRadius: 10, style: .continuous)
++                                .fill(Color(.systemBackground))
++                        )
++                        .overlay(
++                            RoundedRectangle(cornerRadius: 10, style: .continuous)
++                                .stroke(borderColor, lineWidth: 1)
++                        )
++                    }
++                    .buttonStyle(.plain)
++                }
++                
++                // Location
++                VStack(alignment: .leading, spacing: 6) {
++                    Text("LOCATION")
++                        .rockwellFont(11).bold()
++                        .tracking(0.8)
++                        .foregroundStyle(labelColor)
++                    
++                    TextField("e.g. Senate House Café", text: $meetupLocation)
++                        .rockwellFont(14)
++                        .textInputAutocapitalization(.words)
++                        .onChange(of: meetupLocation) {
++                            showSavedConfirmation = false
++                        }
++                        .padding(.horizontal, 12)
++                        .frame(height: 44)
++                        .background(
++                            RoundedRectangle(cornerRadius: 10, style: .continuous)
++                                .fill(Color(.systemBackground))
++                        )
++                        .overlay(
++                            RoundedRectangle(cornerRadius: 10, style: .continuous)
++                                .stroke(borderColor, lineWidth: 1)
++                        )
++                }
++                
++                if showSavedConfirmation {
++                    HStack(spacing: 6) {
++                        Image(systemName: "checkmark.circle.fill")
++                            .font(.system(size: 14))
++                        Text("Meetup details saved")
++                            .rockwellFont(13).bold()
++                    }
++                    .foregroundStyle(brandRed)
++                    .transition(.opacity)
++                }
++            }
++            .padding(18)
++            .background(
++                RoundedRectangle(cornerRadius: 14, style: .continuous)
++                    .fill(brandRed.opacity(0.05))
++            )
++            .onChange(of: meetupTime) {
++                showSavedConfirmation = false
++            }
++        }
++    }
++    
++    // MARK: - Pen & Pal Info Section
++    
++    private var penPalSection: some View {
++        HStack(alignment: .top, spacing: 14) {
++            Circle()
++                .fill(brandRed.opacity(0.10))
++                .frame(width: 42, height: 42)
++                .overlay {
++                    Image(systemName: "envelope")
++                        .font(.system(size: 17, weight: .medium))
++                        .foregroundStyle(brandRed)
++                }
++            
++            VStack(alignment: .leading, spacing: 4) {
++                Text("Pen & pal correspondence")
++                    .rockwellFont(16).bold()
++                    .foregroundStyle(.primary)
++                
++                Text("No in-person meetups needed — stay in touch with John Doe at your own pace and practise \(appData.language).")
++                    .rockwellFont(14)
++                    .foregroundStyle(labelColor)
++                    .fixedSize(horizontal: false, vertical: true)
++                    .lineSpacing(2)
++            }
++            
++            Spacer(minLength: 0)
++        }
++        .padding(18)
++        .background(
++            RoundedRectangle(cornerRadius: 14, style: .continuous)
++                .fill(brandRed.opacity(0.05))
++        )
++    }
++    
++    // MARK: - Persistence Helpers
++    
++    private func loadMeetupDetails() {
++        selectedDays = Set(appData.meetupDays)
++        meetupTime = appData.meetupTime ?? ""
++        meetupLocation = appData.meetupLocation ?? ""
++        syncPickerDateFromTime()
++    }
++    
++    private func saveMeetupDetails() {
++        let trimmedLocation = meetupLocation.trimmingCharacters(in: .whitespacesAndNewlines)
++        meetupLocation = trimmedLocation
++        appData.meetupDays = orderedSelectedDays
++        appData.meetupTime = meetupTime.isEmpty ? nil : meetupTime
++        appData.meetupLocation = trimmedLocation.isEmpty ? nil : trimmedLocation
++        
++        withAnimation(.easeInOut(duration: 0.2)) {
++            showSavedConfirmation = true
++        }
++    }
++    
++    private func syncPickerDateFromTime() {
++        let formatter = DateFormatter()
++        formatter.dateFormat = "HH:mm"
++        formatter.locale = Locale(identifier: "en_GB")
++        if let parsed = formatter.date(from: meetupTime) {
++            pickerDate = parsed
++        } else {
++            pickerDate = Self.defaultPickerDate()
++        }
++    }
++    
++    private static func defaultPickerDate() -> Date {
++        Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date()) ?? Date()
++    }
++}
++
++private struct MeetupTimePickerSheet: View {
++    @Binding var pickerDate: Date
++    @Binding var meetupTime: String
++    let brandRed: Color
++    
++    @Environment(\.dismiss) private var dismiss
+     
+     var body: some View {
+-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
++        VStack(spacing: 0) {
++            HStack {
++                Button {
++                    meetupTime = ""
++                    dismiss()
++                } label: {
++                    Text("Clear")
++                        .rockwellFont(15)
++                        .foregroundStyle(Color(white: 0.42))
++                }
++                
++                Spacer()
++                
++                Text("Select time")
++                    .rockwellFont(18).bold()
++                
++                Spacer()
++                
++                Button {
++                    meetupTime = Self.formatTime(pickerDate)
++                    dismiss()
++                } label: {
++                    Text("Done")
++                        .rockwellFont(15).bold()
++                        .foregroundStyle(brandRed)
++                }
++            }
++            .padding(.horizontal, 20)
++            .padding(.top, 20)
++            .padding(.bottom, 8)
++            
++            DatePicker(
++                "Meetup time",
++                selection: $pickerDate,
++                displayedComponents: .hourAndMinute
++            )
++            .datePickerStyle(.wheel)
++            .labelsHidden()
++            .environment(\.locale, Locale(identifier: "en_GB"))
++            .padding(.horizontal, 20)
++            
++            Spacer(minLength: 0)
++        }
++    }
++    
++    private static func formatTime(_ date: Date) -> String {
++        let formatter = DateFormatter()
++        formatter.dateFormat = "HH:mm"
++        formatter.locale = Locale(identifier: "en_GB")
++        return formatter.string(from: date)
+     }
+ }
+ 
+-#Preview {
+-    iConnectOverview(progress: .constant(.overview))
+-        .environment(AppData())
++#Preview("Student Connect") {
++    iConnectOverview(
++        progress: .constant(.overview),
++        connectionType: .constant(.studentConnect)
++    )
++    .environment(AppData())
++}
++
++#Preview("HomeLink") {
++    iConnectOverview(
++        progress: .constant(.overview),
++        connectionType: .constant(.homeLink)
++    )
++    .environment(AppData())
++}
++
++#Preview("Pen & Pal") {
++    iConnectOverview(
++        progress: .constant(.overview),
++        connectionType: .constant(.penPal)
++    )
++    .environment(AppData())
+ }

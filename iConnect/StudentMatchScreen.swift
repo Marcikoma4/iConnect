@@ -15,19 +15,45 @@ struct StudentMatchScreen: View {
     @Binding var progress: AppData.Progress?
     
     @State private var tapped = false
-    @State private var showingEmailSheet = false
-    @State private var showingMailUnavailableAlert = false
+    @State private var activeComposer: ComposerSheet?
+    @State private var unavailableAlert: UnavailableAlert?
+    
+    private enum ComposerSheet: Identifiable {
+        case message, email
+        var id: Self { self }
+    }
+    
+    private struct UnavailableAlert {
+        let title: String
+        let message: String
+    }
     
     private let brandRed = Color(red: 0.65, green: 0.09, blue: 0.19)
     private let labelColor = Color(white: 0.42)
     
-    private let matchName = "Carlos Mendoza"
-    private let matchCourse = "Computer Science"
+    private let matchName = "John Doe"
+    private let matchEmail = "johndoe@gmail.com"
     private let matchYear = "Year 2"
-    private let matchEmail = "carlos.mendoza@bristol.ac.uk"
+    private let matchPhoneNumber = "+44 7700 900412"
+    
+    private var matchFirstName: String {
+        matchName.split(separator: " ").first.map(String.init) ?? matchName
+    }
     
     private var matchNationality: String {
         appData.language
+    }
+    
+    private var matchCourse: String {
+        if let unwrappedCourse = appData.course {
+            return unwrappedCourse
+        } else {
+            return "" // It should never come to this, but force unwrapping would cause preview to crash
+        }
+    }
+    
+    private var matchInterests: String {
+        appData.interests ?? ""
     }
     
     var body: some View {
@@ -136,15 +162,36 @@ struct StudentMatchScreen: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         
-                        detailField(label: "EMAIL") {
-                            Button {
-                                openEmailComposer()
-                            } label: {
-                                Text(matchEmail)
-                                    .rockwellFont(15)
-                                    .foregroundStyle(brandRed)
+                        detailField(label: "INTERESTS") {
+                            Text(matchInterests)
+                                .rockwellFont(16)
+                                .foregroundStyle(.primary)
+                        }
+                        
+                        HStack(spacing: 16) {
+                            detailField(label: "PHONE") {
+                                Button {
+                                    openMessageComposer()
+                                } label: {
+                                    Text(matchPhoneNumber)
+                                        .rockwellFont(15)
+                                        .foregroundStyle(brandRed)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            
+                            detailField(label: "EMAIL") {
+                                Button {
+                                    openEmailComposer()
+                                } label: {
+                                    Text(matchEmail)
+                                        .rockwellFont(14)
+                                        .foregroundStyle(brandRed)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -160,10 +207,10 @@ struct StudentMatchScreen: View {
             
             Button {
                 tapped.toggle()
-                openEmailComposer()
+                openMessageComposer()
             } label: {
                 HStack {
-                    Text("Say hello by email")
+                    Text("Say hello by text")
                         .rockwellFont(22)
                     Spacer()
                     Image(systemName: "arrow.right")
@@ -184,13 +231,24 @@ struct StudentMatchScreen: View {
         .onAppear {
             appData.hasConnected = true
         }
-        .sheet(isPresented: $showingEmailSheet) {
-            SCEmailView(recipient: matchEmail, recipientFirstName: "Carlos")
+        .sheet(item: $activeComposer) { composer in
+            switch composer {
+            case .message:
+                SCMessageView(recipient: matchPhoneNumber, recipientFirstName: matchFirstName)
+            case .email:
+                SCEmailView(recipient: matchEmail, recipientFirstName: matchFirstName)
+            }
         }
-        .alert("Mail Unavailable", isPresented: $showingMailUnavailableAlert) {
+        .alert(
+            unavailableAlert?.title ?? "",
+            isPresented: Binding(
+                get: { unavailableAlert != nil },
+                set: { if !$0 { unavailableAlert = nil } }
+            )
+        ) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Mail is not configured on this device. You can email \(matchName) at \(matchEmail).")
+            Text(unavailableAlert?.message ?? "")
         }
     }
     
@@ -206,11 +264,66 @@ struct StudentMatchScreen: View {
         }
     }
     
+    private func openMessageComposer() {
+        if MFMessageComposeViewController.canSendText() {
+            activeComposer = .message
+        } else {
+            unavailableAlert = UnavailableAlert(
+                title: "Messages Unavailable",
+                message: "Text messaging is not available on this device. You can text \(matchName) at \(matchPhoneNumber)."
+            )
+        }
+    }
+    
     private func openEmailComposer() {
         if MFMailComposeViewController.canSendMail() {
-            showingEmailSheet = true
+            activeComposer = .email
         } else {
-            showingMailUnavailableAlert = true
+            unavailableAlert = UnavailableAlert(
+                title: "Mail Unavailable",
+                message: "Mail is not configured on this device. You can email \(matchName) at \(matchEmail)."
+            )
+        }
+    }
+}
+
+struct SCMessageView: UIViewControllerRepresentable {
+    @Environment(\.dismiss) private var dismiss
+    
+    var recipient: String = "+44 7700 900412"
+    var recipientFirstName: String = "John"
+    
+    func makeUIViewController(context: Context) -> MFMessageComposeViewController {
+        let composer = MFMessageComposeViewController()
+        composer.messageComposeDelegate = context.coordinator
+        
+        composer.recipients = [recipient]
+        composer.body = "Hi \(recipientFirstName), we matched on iConnect! Would you like to meet at a café?"
+        
+        return composer
+    }
+    
+    func updateUIViewController(
+        _ uiViewController: MFMessageComposeViewController,
+        context: Context
+    ) { }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(dismiss: dismiss)
+    }
+    
+    final class Coordinator: NSObject, MFMessageComposeViewControllerDelegate {
+        private let dismiss: DismissAction
+        
+        init(dismiss: DismissAction) {
+            self.dismiss = dismiss
+        }
+        
+        func messageComposeViewController(
+            _ controller: MFMessageComposeViewController,
+            didFinishWith result: MessageComposeResult
+        ) {
+            dismiss()
         }
     }
 }
@@ -218,8 +331,9 @@ struct StudentMatchScreen: View {
 struct SCEmailView: UIViewControllerRepresentable {
     @Environment(\.dismiss) private var dismiss
     
-    var recipient: String = "carlos.mendoza@bristol.ac.uk"
-    var recipientFirstName: String = "Carlos"
+    var recipient: String = "johndoe@gmail.com"
+    var recipientFirstName: String = "John"
+    var greeting: String = "Hi"
     
     func makeUIViewController(context: Context) -> MFMailComposeViewController {
         let composer = MFMailComposeViewController()
@@ -227,7 +341,7 @@ struct SCEmailView: UIViewControllerRepresentable {
         
         composer.setToRecipients([recipient])
         composer.setSubject("Arrange a meetup")
-        composer.setMessageBody("Hi \(recipientFirstName),", isHTML: false)
+        composer.setMessageBody("\(greeting) \(recipientFirstName),", isHTML: false)
         
         return composer
     }
