@@ -292,13 +292,14 @@ struct SCMessageView: UIViewControllerRepresentable {
     
     var recipient: String = "+44 7700 900412"
     var recipientFirstName: String = "John"
+    var messageBody: String? = nil
     
     func makeUIViewController(context: Context) -> MFMessageComposeViewController {
         let composer = MFMessageComposeViewController()
         composer.messageComposeDelegate = context.coordinator
         
         composer.recipients = [recipient]
-        composer.body = "Hi \(recipientFirstName), we matched on iConnect! Would you like to meet at a café?"
+        composer.body = messageBody ?? "Hi \(recipientFirstName), we matched on iConnect! Would you like to meet at a café?"
         
         return composer
     }
@@ -334,13 +335,14 @@ struct SCEmailView: UIViewControllerRepresentable {
     var recipient: String = "johndoe@gmail.com"
     var recipientFirstName: String = "John"
     var greeting: String = "Hi"
+    var subject: String = "Arrange a meetup"
     
     func makeUIViewController(context: Context) -> MFMailComposeViewController {
         let composer = MFMailComposeViewController()
         composer.mailComposeDelegate = context.coordinator
         
         composer.setToRecipients([recipient])
-        composer.setSubject("Arrange a meetup")
+        composer.setSubject(subject)
         composer.setMessageBody("\(greeting) \(recipientFirstName),", isHTML: false)
         
         return composer

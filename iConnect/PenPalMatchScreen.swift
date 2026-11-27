@@ -235,9 +235,17 @@ struct PenPalMatchScreen: View {
         .sheet(item: $activeComposer) { composer in
             switch composer {
             case .message:
-                SCMessageView(recipient: matchPhoneNumber, recipientFirstName: matchFirstName)
+                SCMessageView(
+                    recipient: matchPhoneNumber,
+                    recipientFirstName: matchFirstName,
+                    messageBody: "Hi \(matchFirstName), we matched as pen pals on iConnect! Would you like to share your address so we can start exchanging letters?"
+                )
             case .email:
-                SCEmailView(recipient: matchEmail, recipientFirstName: matchFirstName)
+                SCEmailView(
+                    recipient: matchEmail,
+                    recipientFirstName: matchFirstName,
+                    subject: "Pen pal correspondence"
+                )
             }
         }
         .alert(
